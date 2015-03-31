@@ -186,3 +186,7 @@
 	cursor: pointer;
 	background: url(themes/light/panel-prev.png) top right no-repeat;
 }
+
+.cursor_pointer {
+    cursor: pointer;
+}

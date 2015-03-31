@@ -4,10 +4,10 @@
 	Author:		Jack Anderson
 	Version:	3.0 DEVELOPMENT
 
-  	See README.txt for instructions on how to markup your HTML
-  	
-  	
-  	Resizefunctionality by Jeroen Penninck
+	See README.txt for instructions on how to markup your HTML
+	
+	
+	Resizefunctionality by Jeroen Penninck
 */
 
 // Make sure Object.create is available in the browser (for our prototypal inheritance)
@@ -38,7 +38,7 @@ if (typeof Object.create !== 'function') {
 			title: img.attr('title') || img.attr('alt'),
 			description: img.data('description')
 		};
-		this.href = null;
+		this.href = img.data('href');  // Important for clickable links
 		this.dom_obj = null;
 		
 		return this;
@@ -437,7 +437,7 @@ if (typeof Object.create !== 'function') {
 				width: gv.outerWidth(dom.gv_frame),
 				height: gv.outerHeight(dom.gv_frame)
 			});
-      
+
 			this.framesLength=framesLength;
 			
 			// If we are scrolling the filmstrip, and we can't show all frames at once,
@@ -493,22 +493,22 @@ if (typeof Object.create !== 'function') {
 					this.scrolling = false;
 				}
 			}
-      
+			
 			// show / hide the extra thumbs used in the scroller
 			if(activate){
 				this.dom.gv_filmstrip.find('.hideifnoscrolling').show();
 			}else{
 				this.dom.gv_filmstrip.find('.hideifnoscrolling').hide();
 			}
-      
+			
 			//stop thumb animation
 			if(dom.gv_thumbnails!=undefined){
 				dom.gv_thumbnails.stop(true,true);
 			}
-      
+			
 			//scroll to correct location
 			this.dom.gv_filmstrip.stop(true,true).css({left:0, top:0});
-      
+			
 			if(activate) {
 				var currentFrame = this.frameIterator;
 				this.frameIterator=0;//scroll from position 0
@@ -522,7 +522,7 @@ if (typeof Object.create !== 'function') {
 		
 		buildGallery: function(create) {
 			create = typeof create !== 'undefined' ? create : true;
-	  
+			
 			var self = this,
 				dom = this.dom;
 			
@@ -557,8 +557,8 @@ if (typeof Object.create !== 'function') {
 						index = _img.data('index'),
 						parent = dom[(_img.data('parent')).type].eq((_img.data('parent')).index),
 						parentType = parent.hasClass('gv_panel') ? 'panel' : 'frame',
-            width = this.width,
-            height = this.height;
+						width = this.width,
+						height = this.height;
 					
 					_img.bind("resizegalleryimage", function(){
 						var _img = $(this),
@@ -637,7 +637,15 @@ if (typeof Object.create !== 'function') {
 		
 		showNext: function() {
 			this.navAction = 'next';
-			this.showItem(this.frameIterator+1);
+			if (this.playing && this.opts.play_random_order) {
+				var nextImage = this.frameIterator;
+				while (nextImage == this.frameIterator) {
+					nextImage = Math.floor(Math.random()*(this.numImages + 1));
+				}
+				this.showItem(nextImage);
+			} else {
+				this.showItem(this.frameIterator+1);
+			}
 		},
 		
 		showPrev: function() {
@@ -659,17 +667,8 @@ if (typeof Object.create !== 'function') {
 				playing = false;
 				
 			// don't go out of bounds
-			if(i >= this.numImages) {
-				i = i % this.numImages;
-			} else if(i < 0) {
-				i = this.numImages - 1;
-				if(dom.gv_frames != undefined) {
-					frame_i = dom.gv_frames.length - 1;
-				} else {
-					frame_i = dom.gv_panels.length - 1;
-				}
-			}
-
+			i = self.getTrueImageIndex(i);
+			
 			if( i == this.iterator ) {
 			  return;
 			}
@@ -725,6 +724,7 @@ if (typeof Object.create !== 'function') {
 			$("img", this.gv_galleryWrap).trigger( "resizegalleryimage" );
 			
 			this.updateOverlay(i);
+			this.updateClickable(i);
 			
 			this.iterator = i;
 			this.updateFilmstrip(frame_i);
@@ -735,20 +735,53 @@ if (typeof Object.create !== 'function') {
 			}
 		},
 		
+		// given an index i, it will adjust i to an appropriate
+		// index that is within the bounds of the images array
+		// pulled out of showItem so it could be re-used for 
+		// other methods and events
+		getTrueImageIndex: function (i) {
+			if (i >= this.numImages) {
+				i = i % this.numImages;
+			} else if (i < 0) {
+				i = this.numImages - 1;
+				if (dom.gv_frames != undefined) {
+					frame_i = dom.gv_frames.length - 1;
+				} else {
+					frame_i = dom.gv_panels.length - 1;
+				}
+			}
+			
+			return i;
+		},
+		
 		updateOverlay: function(i) {
 			var self = this,
 				dom = this.dom;
 			
+			var cursorStyle = '';
+			
+			if (this.opts.clickable == 'overlay' || this.opts.clickable == 'all') {
+				cursorStyle = ' class="cursor_pointer"';
+			}
+			
+			var overlayHtml = '<h4' + cursorStyle + '>' + 
+			self.gvImages[i].attrs.title + '</h4><p>' + 
+			self.gvImages[i].attrs.description + '</p>';
+
 			if(this.overlayVisible) {
 				this.hideOverlay(null,function(){
-					dom.gv_overlay.html('<h4>'+self.gvImages[i].attrs.title+'</h4><p>'+self.gvImages[i].attrs.description+'</p>');
+				dom.gv_overlay.html(overlayHtml);
 					self.showOverlay();
 				});
 			} else {
-				dom.gv_overlay.html('<h4>'+self.gvImages[i].attrs.title+'</h4><p>'+self.gvImages[i].attrs.description+'</p>');
+				dom.gv_overlay.html(overlayHtml);
 				dom.gv_overlay.css(this.opts.overlay_position,-1 * dom.gv_overlay.outerHeight());
 			}
 			
+			if (this.opts.clickable == 'overlay' || this.opts.clickable == 'all') {
+				dom.gv_panelWrap.undelegate('.gv_overlay h4', 'click.galleryview');
+				dom.gv_panelWrap.delegate('.gv_overlay h4', 'click.galleryview', this.doClick(self.gvImages[i].href));
+			}
 		},
 		
 		hideOverlay: function(s,callback) {
@@ -978,10 +1011,18 @@ if (typeof Object.create !== 'function') {
 			
 			dom.gv_filmstripWrap.delegate('.gv_frame','click.galleryview',function(){
 				var el = $(this),
-					i = el.data('frameIndex');
+					i = self.getTrueImageIndex(el.data('frameIndex'));
 				
+				if (self.opts.filmstrip_use_alt_click && self.gvImages[i].href != "")
+				{
+					self.doClick(self.gvImages[i].href)();
+				}
+				else
+				{
 				this.navAction = 'frame';
 				self.showItem(i);
+				}
+				
 				return false;
 			});
 			
@@ -1019,6 +1060,47 @@ if (typeof Object.create !== 'function') {
 			dom.gv_panelNavPrev.hide();	
 		},
 		
+		// There's no need to repeat code, so let's just 
+		// abstract the click stuff a little
+		doClick: function (link) {
+			var self = this,
+				dom = this.dom;
+			
+			if (link != '') {
+				var action;
+				
+				if (this.opts.link_newwindow) {
+					action = function () {
+						window.open(link, "_blank");
+					};
+				}
+				else {
+					action = function () {
+						window.location = link;
+					};
+				}
+				
+				return action;
+			}
+			
+			// Just in case we have an empty href
+			return null;
+		},
+
+		// Added to provide clickable link support for panels
+		updateClickable: function (i) {
+			var self = this,
+				dom = this.dom;
+
+			// If we don't undelegate here, we'll stack
+			// up click actions and cycling through the
+			// gallery can end up opening LOTS of links
+			dom.gv_panelWrap.undelegate('.gv_panel', 'click.galleryview');
+			dom.gv_panelWrap.delegate('.gv_panel', 'click.galleryview', this.doClick(self.gvImages[i].href));
+
+			return false;
+		},
+
 		init: function(options,el) {
 			var self = this,
 				dom = this.dom = {};
@@ -1091,7 +1173,7 @@ if (typeof Object.create !== 'function') {
 			if(this.opts.enable_overlays) {
 				dom.gv_panelWrap.append(dom.gv_overlay,dom.gv_showOverlay);	
 			}
-					
+			
 			if(this.opts.show_captions) {
 				dom.gv_frame.append(dom.gv_caption).appendTo(dom.gv_gallery);	
 			}
@@ -1123,6 +1205,11 @@ if (typeof Object.create !== 'function') {
 			
 			if(this.opts.autoplay) {
 				this.startSlideshow(true);
+			}
+			
+			// if panels should be clickable - set it up
+			if (this.opts.clickable == 'panel' || this.opts.clickable == 'all') {
+				this.updateClickable(this.iterator);
 			}
 			
 			this.updateOverlay(this.iterator);
@@ -1208,6 +1295,8 @@ if (typeof Object.create !== 'function') {
 		pan_images: false,				//BOOLEAN - flag to allow user to grab/drag oversized images within gallery
 		pan_style: 'drag',				//STRING - panning method (drag = user clicks and drags image to pan, track = image automatically pans based on mouse position
 		pan_smoothness: 15,				//INT - determines smoothness of tracking pan animation (higher number = smoother)
+		link_newwindow: true,           //BOOLEAN - flag to open clickable images in a new window
+		clickable: 'none',              //BOOLEAN - flag to determine if the clickable items (panel, overlay, all, none)
 		
 		// Filmstrip Options
 		start_frame: 1, 				//INT - index of panel/frame to show first when gallery loads
@@ -1215,6 +1304,7 @@ if (typeof Object.create !== 'function') {
 		show_filmstrip_nav: true, 		//BOOLEAN - flag indicating whether to display navigation buttons
 		enable_slideshow: true,			//BOOLEAN - flag indicating whether to display slideshow play/pause button
 		autoplay: false,				//BOOLEAN - flag to start slideshow on gallery load
+		play_random_order: false,       //BOOLEAN - while playing the images are "playing" use a random order
 		show_captions: false, 			//BOOLEAN - flag to show or hide frame captions	
 		filmstrip_size: 3, 				//INT - number of frames to show in filmstrip-only gallery
 		filmstrip_style: 'scroll', 		//STRING - type of filmstrip to use (scroll = display one line of frames, scroll filmstrip if necessary, showall = display multiple rows of frames if necessary)
@@ -1224,6 +1314,7 @@ if (typeof Object.create !== 'function') {
 		frame_opacity: 0.4, 			//FLOAT - transparency of non-active frames (1.0 = opaque, 0.0 = transparent)
 		frame_scale: 'crop', 			//STRING - cropping option for filmstrip images (same as above)
 		frame_gap: 5, 					//INT - spacing between frames within filmstrip (in pixels)
+		filmstrip_use_alt_click: false, //BOOLEAN - allows the filmstrip to use the alternate clickable option as instead of navigating as normal
 		
 		// Info Bar Options
 		show_infobar: true,				//BOOLEAN - flag to show or hide infobar
